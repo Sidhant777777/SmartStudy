@@ -2,3 +2,5 @@ __pycache__/
 *.db
 *.zip
 Claude outputs/
+.env
+.env
