@@ -89,7 +89,7 @@ def generate_cards(text: str) -> list[dict]:
             filled_prompt = PROMPT.format(text=text)
 
             response = client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": filled_prompt}],
                 temperature=0.3,
                 max_tokens=4000,
