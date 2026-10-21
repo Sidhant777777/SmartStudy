@@ -1,45 +1,16 @@
-// ================================================================
-// ReviewPage.jsx
-// ================================================================
-// The actual flashcard review session page.
-//
-// How the review session works:
-// 1. Load all due cards from backend on mount
-// 2. Show the first card using FlashCard component
-// 3. User flips card, then clicks a rating button
-// 4. We call the backend to update FSRS scheduling
-// 5. Move to next card
-// 6. When all cards done → show a summary screen
-//
-// Key concept: currentIndex
-// -------------------------
-// We keep an index (0, 1, 2, ...) pointing to the current card
-// in the dueCards array. Each time the user rates a card,
-// we increment the index to move to the next card.
-// ================================================================
-
 import { useState, useEffect } from "react";
 import { getDueCards, reviewCard } from "../api";
 import FlashCard from "../components/FlashCard";
+import Confetti from "../components/Confetti";
 
-
-/**
- * ReviewPage component
- * @param {Function} onFinish - Called when review session is complete
- */
 export default function ReviewPage({ onFinish }) {
+  const [cards, setCards]               = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading]           = useState(true);
+  const [submitting, setSubmitting]     = useState(false);
+  const [sessionStats, setSessionStats] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
+  const [showConfetti, setShowConfetti] = useState(false);
 
-  // ── State ─────────────────────────────────────────────────────
-  const [cards, setCards]           = useState([]);    // all due cards
-  const [currentIndex, setCurrentIndex] = useState(0); // which card we're on
-  const [loading, setLoading]       = useState(true);  // fetching cards
-  const [submitting, setSubmitting] = useState(false); // submitting a review
-  const [sessionStats, setSessionStats] = useState({  // track this session
-    again: 0, hard: 0, good: 0, easy: 0
-  });
-
-
-  // ── Load due cards when page opens ───────────────────────────
   useEffect(() => {
     async function loadCards() {
       try {
@@ -54,29 +25,22 @@ export default function ReviewPage({ onFinish }) {
     loadCards();
   }, []);
 
+  // Fire confetti once when session completes
+  useEffect(() => {
+    if (cards.length > 0 && currentIndex >= cards.length) {
+      setShowConfetti(true);
+    }
+  }, [currentIndex, cards.length]);
 
-  // ── Handle user rating a card ─────────────────────────────────
   async function handleRate(rating) {
-    if (submitting) return; // prevent double-clicking
-
+    if (submitting) return;
     const currentCard = cards[currentIndex];
     setSubmitting(true);
-
     try {
-      // Tell the backend the user's rating
-      // FSRS will calculate the next due date
       await reviewCard(currentCard.id, rating);
-
-      // Update session stats for the summary screen
-      const ratingLabels = { 1: "again", 2: "hard", 3: "good", 4: "easy" };
-      setSessionStats(prev => ({
-        ...prev,
-        [ratingLabels[rating]]: prev[ratingLabels[rating]] + 1
-      }));
-
-      // Move to next card
+      const labels = { 1: "again", 2: "hard", 3: "good", 4: "easy" };
+      setSessionStats(prev => ({ ...prev, [labels[rating]]: prev[labels[rating]] + 1 }));
       setCurrentIndex(prev => prev + 1);
-
     } catch (err) {
       console.error("Failed to submit review:", err);
     } finally {
@@ -84,8 +48,7 @@ export default function ReviewPage({ onFinish }) {
     }
   }
 
-
-  // ── Loading State ─────────────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -94,8 +57,7 @@ export default function ReviewPage({ onFinish }) {
     );
   }
 
-
-  // ── No cards due ──────────────────────────────────────────────
+  // ── No cards due ─────────────────────────────────────────────
   if (cards.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
@@ -112,19 +74,17 @@ export default function ReviewPage({ onFinish }) {
     );
   }
 
-
-  // ── Session Complete (Summary Screen) ─────────────────────────
-  // currentIndex >= cards.length means we've gone through all cards
+  // ── Session complete ─────────────────────────────────────────
   if (currentIndex >= cards.length) {
     const total = cards.length;
-
+    const goodRate = Math.round(((sessionStats.good + sessionStats.easy) / total) * 100);
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-6">
-        <p className="text-6xl">🏆</p>
+        {showConfetti && <Confetti />}
+        <p className="text-6xl animate-bounce">🏆</p>
         <h2 className="text-2xl font-bold text-gray-800">Session Complete!</h2>
-        <p className="text-gray-500">You reviewed {total} cards</p>
+        <p className="text-gray-500">You reviewed <strong>{total}</strong> cards · <strong>{goodRate}%</strong> correct</p>
 
-        {/* Session breakdown */}
         <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto">
           <div className="bg-red-50 rounded-xl p-3">
             <p className="text-2xl font-bold text-red-600">{sessionStats.again}</p>
@@ -154,33 +114,17 @@ export default function ReviewPage({ onFinish }) {
     );
   }
 
-
-  // ── Active Review Session ─────────────────────────────────────
+  // ── Active session ───────────────────────────────────────────
   const currentCard = cards[currentIndex];
-  const progress = ((currentIndex) / cards.length) * 100; // percentage complete
+  const progress = (currentIndex / cards.length) * 100;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-
-      {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={onFinish}
-          className="text-gray-400 hover:text-gray-600 text-sm"
-        >
-          ← Exit
-        </button>
-        <p className="text-sm text-gray-500">
-          {currentIndex + 1} / {cards.length}
-        </p>
+        <button onClick={onFinish} className="text-gray-400 hover:text-gray-600 text-sm">← Exit</button>
+        <p className="text-sm text-gray-500">{currentIndex + 1} / {cards.length}</p>
       </div>
 
-      {/* ── Progress Bar ───────────────────────────────────────── */}
-      {/*
-        The width of the inner div is set dynamically using a style prop.
-        We can't use template literals in Tailwind for dynamic values,
-        so we use style={{ width: `${progress}%` }} instead.
-      */}
       <div className="w-full bg-gray-100 rounded-full h-2">
         <div
           className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
@@ -188,17 +132,9 @@ export default function ReviewPage({ onFinish }) {
         />
       </div>
 
-      {/* ── Flashcard ──────────────────────────────────────────── */}
-      <FlashCard
-        card={currentCard}
-        onRate={handleRate}
-      />
+      <FlashCard card={currentCard} onRate={handleRate} />
 
-      {/* ── Deck Name ──────────────────────────────────────────── */}
-      <p className="text-center text-sm text-gray-400">
-        From: {currentCard.deck_name}
-      </p>
-
+      <p className="text-center text-sm text-gray-400">From: {currentCard.deck_name}</p>
     </div>
   );
 }

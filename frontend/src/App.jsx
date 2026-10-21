@@ -1,47 +1,60 @@
 // ================================================================
-// App.jsx
+// App.jsx  —  Root component
 // ================================================================
-// This is the ROOT component — the entry point of the entire UI.
+// Auth flow:
+//   1. On load, check localStorage for "smartstudy_token"
+//   2. If no token → show AuthPage (login / register)
+//   3. If token exists → show main app (home / review)
+//   4. Logout clears the token and returns to AuthPage
 //
-// What does it do?
-// ----------------
-// It manages which PAGE is currently visible.
-// We have 2 pages: "home" and "review"
-//
-// Instead of using React Router (which adds complexity),
-// we use a simple "page" state variable:
-//   page = "home"   → show HomePage
-//   page = "review" → show ReviewPage
-//
-// This is called a "single page application" pattern.
-// The URL doesn't change, but the UI does.
+// Page routing (no React Router — simple state machine):
+//   page = "home"   → HomePage
+//   page = "review" → ReviewPage
 // ================================================================
 
 import { useState } from "react";
-import HomePage from "./pages/HomePage";
+import AuthPage   from "./pages/AuthPage";
+import HomePage   from "./pages/HomePage";
 import ReviewPage from "./pages/ReviewPage";
+import { clearToken } from "./api";
 
 export default function App() {
-  // "page" controls which component is rendered
-  // Start on the home page
-  const [page, setPage] = useState("home");
+  // Check for existing token on first render
+  const [token, setToken] = useState(() => localStorage.getItem("smartstudy_token"));
+  const [page, setPage]   = useState("home");
 
+  // Called by AuthPage after successful login / register
+  function handleAuth() {
+    setToken(localStorage.getItem("smartstudy_token"));
+    setPage("home");
+  }
+
+  // Called by HomePage logout button
+  function handleLogout() {
+    clearToken();
+    setToken(null);
+    setPage("home");
+  }
+
+  // ── Not logged in ─────────────────────────────────────────────
+  if (!token) {
+    return <AuthPage onAuth={handleAuth} />;
+  }
+
+  // ── Logged in ─────────────────────────────────────────────────
   return (
-    // min-h-screen makes the background cover the full viewport height
     <div className="min-h-screen bg-gray-50">
 
-      {/* Render the correct page based on the "page" state */}
       {page === "home" && (
         <HomePage
           onStartReview={() => setPage("review")}
-          // When user clicks "Start Review", switch to review page
+          onLogout={handleLogout}
         />
       )}
 
       {page === "review" && (
         <ReviewPage
           onFinish={() => setPage("home")}
-          // When review session ends, go back to home
         />
       )}
 

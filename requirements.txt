@@ -1,7 +1,12 @@
-fastapi           # the web framework that creates our API
-uvicorn           # the server that runs our FastAPI app
-pymupdf           # reads text from PDF files (imported as "fitz")
-groq              # Groq AI API client (free LLM access)
-fsrs           # FSRS spaced repetition scheduling algorithm
-python-multipart  # required for FastAPI to handle file uploads
-python-dotenv     # reads .env file so we can use os.getenv()
+fastapi
+uvicorn[standard]
+pymupdf
+groq
+fsrs
+python-multipart
+python-dotenv
+psycopg2-binary
+apscheduler
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1

@@ -1,140 +1,103 @@
-# ================================================================
-# notifier.py
-# ================================================================
-# This file handles sending email notifications.
-#
-# What it does:
-# Every day at 8 AM, it checks the database for cards that are due.
-# If there are cards due, it sends an email saying "You have X cards
-# to review today."
-#
-# How email sending works in Python:
-# -----------------------------------
-# Python has a built-in library called smtplib.
-# SMTP = Simple Mail Transfer Protocol — the standard for sending email.
-# We connect to Gmail's SMTP server, log in, and send the email.
-# No external service needed — just a Gmail account.
-#
-# Gmail App Password:
-# -------------------
-# Gmail won't let you use your real password in code.
-# Instead you create an "App Password" — a special 16-character
-# password just for this app.
-# How to get one:
-#   1. Go to myaccount.google.com
-#   2. Security → 2-Step Verification (must be ON)
-#   3. Search "App passwords" → create one → copy the 16-char code
-#   4. Put it in your .env as GMAIL_APP_PASSWORD
-# ================================================================
-
-import smtplib                          # built into Python, no pip needed
+import smtplib
 import os
-from email.mime.text import MIMEText    # for creating email content
-from email.mime.multipart import MIMEMultipart  # for email with subject + body
+import psycopg2
+import psycopg2.extras
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from database import get_connection
 
 
-def get_due_count() -> int:
-    """
-    Checks the database and returns how many cards are due today.
-    Returns 0 if none are due.
-    """
+def get_due_count_for_user(user_id: int) -> int:
     conn = get_connection()
-    count = conn.execute(
-        "SELECT COUNT(*) FROM cards WHERE date(due_date) <= date('now')"
-    ).fetchone()[0]
-    conn.close()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) FROM cards
+        JOIN decks ON cards.deck_id = decks.id
+        WHERE due_date::date <= CURRENT_DATE AND decks.user_id = %s
+    """, (user_id,))
+    count = cur.fetchone()[0]
+    cur.close(); conn.close()
     return count
 
 
-def get_due_by_topic() -> list:
-    """
-    Returns a breakdown of due cards by topic.
-    Used to make the email more informative.
-    Example: [{"topic": "Neural Networks", "count": 5}, ...]
-    """
+def get_due_topics_for_user(user_id: int) -> list:
     conn = get_connection()
-    rows = conn.execute("""
-        SELECT topic, COUNT(*) as count
-        FROM cards
-        WHERE date(due_date) <= date('now')
-        GROUP BY topic
-        ORDER BY count DESC
-        LIMIT 5
-    """).fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+    cur  = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("""
+        SELECT topic, COUNT(*) as count FROM cards
+        JOIN decks ON cards.deck_id = decks.id
+        WHERE due_date::date <= CURRENT_DATE AND decks.user_id = %s
+        GROUP BY topic ORDER BY count DESC LIMIT 5
+    """, (user_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
 
 
-def send_notification_email():
-    """
-    The main function called by APScheduler every day at 8 AM.
+def send_email_to_user(user_id: int, receiver_email: str):
+    """Send a reminder to one specific user."""
+    sender_email = os.getenv("GMAIL_ADDRESS")
+    app_password = os.getenv("GMAIL_APP_PASSWORD")
 
-    Steps:
-    1. Check how many cards are due
-    2. If 0 cards → skip (no need to email)
-    3. If cards are due → build email and send via Gmail SMTP
-    """
-
-    # ── Read credentials from .env ─────────────────────────────
-    sender_email   = os.getenv("GMAIL_ADDRESS")
-    app_password   = os.getenv("GMAIL_APP_PASSWORD")
-    receiver_email = os.getenv("NOTIFY_EMAIL")  # who to send the notification to
-
-    # If email credentials aren't set up, skip silently
     if not all([sender_email, app_password, receiver_email]):
-        print("[notifier] Email credentials not set up — skipping notification")
+        print(f"[notifier] Skipping user {user_id} — credentials not set")
         return
 
-    # ── Check how many cards are due ───────────────────────────
-    due_count = get_due_count()
-
+    due_count = get_due_count_for_user(user_id)
     if due_count == 0:
-        print("[notifier] No cards due today — skipping email")
+        print(f"[notifier] User {user_id}: no cards due — skipping")
         return
 
-    # ── Get topic breakdown ────────────────────────────────────
-    topics = get_due_by_topic()
+    topics = get_due_topics_for_user(user_id)
+    topic_lines = "\n".join(f"  • {t['topic']}: {t['count']} cards" for t in topics)
 
-    # ── Build the email ────────────────────────────────────────
-    # MIMEMultipart lets us have both a subject and a body
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"📚 FlashCard AI — {due_count} cards due today"
+    msg["Subject"] = f"📚 SmartStudy — {due_count} cards due today"
     msg["From"]    = sender_email
     msg["To"]      = receiver_email
 
-    # Build topic breakdown text
-    topic_lines = "\n".join(
-        f"  • {t['topic']}: {t['count']} cards" for t in topics
-    )
-
-    # Plain text version of the email
-    text_body = f"""
-Hi!
+    body = f"""Hi!
 
 You have {due_count} flashcards due for review today.
 
 Topics:
 {topic_lines}
 
-Open your FlashCard AI app to start reviewing.
+Open your SmartStudy app to start reviewing.
 
-Happy studying! 🧠
-    """.strip()
+Happy studying! 🧠""".strip()
 
-    # Attach the text body to the email
-    msg.attach(MIMEText(text_body, "plain"))
+    msg.attach(MIMEText(body, "plain"))
 
-    # ── Send the email via Gmail SMTP ──────────────────────────
     try:
-        # port 587 = Gmail's TLS port (standard for secure email)
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.ehlo()        # introduce ourselves to the server
-            server.starttls()    # upgrade connection to encrypted TLS
-            server.login(sender_email, app_password)  # log in with App Password
+            server.ehlo()
+            server.starttls()
+            server.login(sender_email, app_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
-
-        print(f"[notifier] ✓ Email sent — {due_count} cards due today")
-
+        print(f"[notifier] ✓ Sent to {receiver_email} ({due_count} cards due)")
     except Exception as e:
-        print(f"[notifier] ✗ Failed to send email: {e}")
+        print(f"[notifier] ✗ Failed for {receiver_email}: {e}")
+
+
+def send_all_notifications():
+    """Called by APScheduler daily — loops through all users who set a notify_email."""
+    try:
+        conn = get_connection()
+        cur  = conn.cursor()
+        # Keys look like "u42:notify_email"
+        cur.execute("SELECT key, value FROM settings WHERE key LIKE 'u%:notify_email'")
+        rows = cur.fetchall(); cur.close(); conn.close()
+    except Exception as e:
+        print(f"[notifier] DB error: {e}")
+        return
+
+    if not rows:
+        print("[notifier] No users have set a notify_email — skipping")
+        return
+
+    for key, email in rows:
+        try:
+            user_id = int(key.split(":")[0][1:])  # "u42:notify_email" → 42
+            send_email_to_user(user_id, email)
+        except Exception as e:
+            print(f"[notifier] Error processing {key}: {e}")
