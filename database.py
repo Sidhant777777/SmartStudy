@@ -33,6 +33,12 @@ def init_db():
         )
     """)
 
+
+    # Migration: add user_id to decks if missing (handles old deployments)
+    cur.execute("""
+        ALTER TABLE decks ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)
+    """)
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS cards (
             id             SERIAL PRIMARY KEY,
