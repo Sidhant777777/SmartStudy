@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { uploadPDF, getDecks, getStats, getDueCards, deleteDeck, getNotifyEmail, saveNotifyEmail, getReminderTime, saveReminderTime } from "../api";
 import StatCard from "../components/StatCard";
 import WelcomeModal from "../components/WelcomeModal";
+import StudyHeatmap from "../components/StudyHeatmap";
 
 async function fetchStreak(token) {
   const BASE_URL = import.meta.env.VITE_API_URL || "https://smartstudy-backend-x6mo.onrender.com";
@@ -192,6 +193,9 @@ export default function HomePage({ onStartReview, onLogout, dark, onToggleDark }
             <StatCard label="Day Streak"  value={`${streak} 🔥`}            emoji="🔥" gradient="from-yellow-400 to-orange-500" />
           </div>
         )}
+
+        {/* Heatmap */}
+        <StudyHeatmap />
 
         {/* How it works */}
         <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-3xl p-6 border border-indigo-100 dark:border-indigo-900">
