@@ -1,25 +1,11 @@
-// ================================================================
-// StatCard.jsx
-// ================================================================
-// A simple card that displays one statistic on the dashboard.
-// Example: "Total Cards: 47" or "Retention Rate: 84%"
-//
-// This is a "presentational component" — it only displays data,
-// it doesn't fetch anything or have complex logic.
-// ================================================================
-
-/**
- * @param {string} label  - The stat name, e.g. "Total Cards"
- * @param {string|number} value - The stat value, e.g. 47 or "84%"
- * @param {string} emoji  - Icon to display, e.g. "📚"
- * @param {string} color  - Tailwind color class for the accent
- */
-export default function StatCard({ label, value, emoji, color = "bg-indigo-50" }) {
+export default function StatCard({ label, value, emoji, gradient = "from-indigo-500 to-purple-500" }) {
   return (
-    <div className={`${color} rounded-2xl p-5 flex flex-col gap-2`}>
+    <div className="group relative bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+      {/* Subtle gradient accent */}
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${gradient} opacity-70 group-hover:opacity-100 transition-opacity`} />
       <span className="text-2xl">{emoji}</span>
-      <p className="text-3xl font-bold text-gray-800">{value}</p>
-      <p className="text-sm text-gray-500">{label}</p>
+      <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{value}</p>
+      <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{label}</p>
     </div>
   );
 }

@@ -1,63 +1,59 @@
-// ================================================================
-// App.jsx  —  Root component
-// ================================================================
-// Auth flow:
-//   1. On load, check localStorage for "smartstudy_token"
-//   2. If no token → show AuthPage (login / register)
-//   3. If token exists → show main app (home / review)
-//   4. Logout clears the token and returns to AuthPage
-//
-// Page routing (no React Router — simple state machine):
-//   page = "home"   → HomePage
-//   page = "review" → ReviewPage
-// ================================================================
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthPage   from "./pages/AuthPage";
 import HomePage   from "./pages/HomePage";
 import ReviewPage from "./pages/ReviewPage";
+import SidePanel  from "./components/SidePanel";
 import { clearToken } from "./api";
 
 export default function App() {
-  // Check for existing token on first render
   const [token, setToken] = useState(() => localStorage.getItem("smartstudy_token"));
   const [page, setPage]   = useState("home");
+  const [dark, setDark]   = useState(() => localStorage.getItem("smartstudy_dark") === "true");
 
-  // Called by AuthPage after successful login / register
+  // Apply/remove dark class on <html> so Tailwind dark: classes work everywhere
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("smartstudy_dark", dark);
+  }, [dark]);
+
   function handleAuth() {
     setToken(localStorage.getItem("smartstudy_token"));
     setPage("home");
   }
 
-  // Called by HomePage logout button
   function handleLogout() {
     clearToken();
     setToken(null);
     setPage("home");
   }
 
-  // ── Not logged in ─────────────────────────────────────────────
   if (!token) {
-    return <AuthPage onAuth={handleAuth} />;
+    return <AuthPage onAuth={handleAuth} dark={dark} onToggleDark={() => setDark(d => !d)} />;
   }
 
-  // ── Logged in ─────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+      <SidePanel />
 
       {page === "home" && (
         <HomePage
           onStartReview={() => setPage("review")}
           onLogout={handleLogout}
+          dark={dark}
+          onToggleDark={() => setDark(d => !d)}
         />
       )}
 
       {page === "review" && (
         <ReviewPage
           onFinish={() => setPage("home")}
+          dark={dark}
         />
       )}
-
     </div>
   );
 }

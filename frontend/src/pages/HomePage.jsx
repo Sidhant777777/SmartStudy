@@ -1,15 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import {
-  uploadPDF, getDecks, getStats, getDueCards,
-  deleteDeck, getNotifyEmail, saveNotifyEmail,
-  getStreak, getHeatmap, getForecast, getTopicAccuracy,
-  getReminderTime, saveReminderTime,
-} from "../api";
+import { uploadPDF, getDecks, getStats, getDueCards, deleteDeck, getNotifyEmail, saveNotifyEmail } from "../api";
 import StatCard from "../components/StatCard";
 import WelcomeModal from "../components/WelcomeModal";
-import Heatmap from "../components/Heatmap";
 
-export default function HomePage({ onStartReview, onLogout }) {
+export default function HomePage({ onStartReview, onLogout, dark, onToggleDark }) {
   const [stats, setStats]             = useState(null);
   const [decks, setDecks]             = useState([]);
   const [dueCount, setDueCount]       = useState(0);
@@ -17,21 +11,10 @@ export default function HomePage({ onStartReview, onLogout }) {
   const [uploadMsg, setUploadMsg]     = useState("");
   const [loading, setLoading]         = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
-
-  // Notification settings
-  const [notifyEmail, setNotifyEmail]     = useState("");
-  const [emailSaved, setEmailSaved]       = useState(false);
-  const [emailSaving, setEmailSaving]     = useState(false);
-  const [reminderTime, setReminderTime]   = useState("08:00");
-  const [timeSaved, setTimeSaved]         = useState(false);
-  const [timeSaving, setTimeSaving]       = useState(false);
-
-  // New feature data
-  const [streak, setStreak]       = useState(0);
-  const [heatmap, setHeatmap]     = useState([]);
-  const [forecast, setForecast]   = useState([]);
-  const [topics, setTopics]       = useState([]);
-
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [emailSaved, setEmailSaved]   = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [dragOver, setDragOver]       = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -40,20 +23,13 @@ export default function HomePage({ onStartReview, onLogout }) {
 
     async function loadData() {
       try {
-        const [statsData, decksData, dueCards, emailData, streakData,
-               heatmapData, forecastData, topicsData, rtData] = await Promise.all([
+        const [statsData, decksData, dueCards, emailData] = await Promise.all([
           getStats(), getDecks(), getDueCards(), getNotifyEmail(),
-          getStreak(), getHeatmap(), getForecast(), getTopicAccuracy(), getReminderTime(),
         ]);
         setStats(statsData);
         setDecks(decksData);
         setDueCount(dueCards.length);
         setNotifyEmail(emailData.email || "");
-        setStreak(streakData.streak || 0);
-        setHeatmap(heatmapData);
-        setForecast(forecastData);
-        setTopics(topicsData);
-        setReminderTime(rtData.time || "08:00");
       } catch (err) {
         console.error("Failed to load data:", err);
       } finally {
@@ -82,20 +58,6 @@ export default function HomePage({ onStartReview, onLogout }) {
     }
   }
 
-  async function handleSaveTime(e) {
-    e.preventDefault();
-    setTimeSaving(true);
-    try {
-      await saveReminderTime(reminderTime);
-      setTimeSaved(true);
-      setTimeout(() => setTimeSaved(false), 3000);
-    } catch (err) {
-      alert("Failed to save time: " + err.message);
-    } finally {
-      setTimeSaving(false);
-    }
-  }
-
   async function handleDeleteDeck(deckId, deckName) {
     if (!window.confirm(`Delete "${deckName}" and all its cards?`)) return;
     try {
@@ -109,8 +71,7 @@ export default function HomePage({ onStartReview, onLogout }) {
     }
   }
 
-  async function handleFileChange(event) {
-    const file = event.target.files[0];
+  async function processFile(file) {
     if (!file) return;
     if (!file.name.endsWith(".pdf")) { setUploadMsg("❌ Please select a PDF file"); return; }
     setUploading(true);
@@ -125,17 +86,28 @@ export default function HomePage({ onStartReview, onLogout }) {
       setUploadMsg(`❌ Error: ${err.message}`);
     } finally {
       setUploading(false);
-      event.target.value = "";
     }
   }
 
-  // ── Forecast bar chart helpers ────────────────────────────────
-  const maxForecast = Math.max(...forecast.map(f => f.count), 1);
+  async function handleFileChange(event) {
+    await processFile(event.target.files[0]);
+    event.target.value = "";
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    processFile(file);
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-lg">Loading your flashcards...</div>
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm">Loading your flashcards...</p>
+        </div>
       </div>
     );
   }
@@ -146,206 +118,153 @@ export default function HomePage({ onStartReview, onLogout }) {
 
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
 
-        {/* ── Header with Streak ── */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">SmartStudy</h1>
-            <p className="text-gray-500 mt-1">Spaced repetition powered by FSRS</p>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-lg shadow-sm">🧠</div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">SmartStudy</h1>
+            </div>
+            <p className="text-gray-400 dark:text-gray-500 text-sm ml-12">Spaced repetition powered by FSRS</p>
           </div>
-          <div className="flex items-center gap-3">
-            {streak > 0 && (
-              <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 px-4 py-2 rounded-xl font-semibold">
-                <span className="text-xl">🔥</span>
-                <span>{streak}-day streak!</span>
-              </div>
-            )}
+
+          <div className="flex items-center gap-2">
+            {/* Dark mode toggle */}
+            <button
+              onClick={onToggleDark}
+              className="w-9 h-9 rounded-xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-center text-base hover:scale-110 transition-transform"
+            >
+              {dark ? "☀️" : "🌙"}
+            </button>
+
             {dueCount > 0 && (
               <button
                 onClick={onStartReview}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2"
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl font-semibold transition-all duration-200 shadow-md shadow-indigo-200 dark:shadow-indigo-900 hover:-translate-y-0.5 flex items-center gap-2 text-sm"
               >
                 <span>📖</span>
                 <span>Review {dueCount} cards</span>
               </button>
             )}
+
             <button
               onClick={onLogout}
-              className="text-sm text-gray-400 hover:text-gray-600 border border-gray-200 px-4 py-2 rounded-xl transition-colors"
-              title="Log out"
+              className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-2.5 rounded-xl transition-colors bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               Log out
             </button>
           </div>
         </div>
 
-        {/* ── Stats Grid ── */}
+        {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Total Cards" value={stats.total_cards}          emoji="📚" color="bg-indigo-50" />
-            <StatCard label="Due Today"   value={stats.due_today}            emoji="📅" color="bg-orange-50" />
-            <StatCard label="Mastered"    value={stats.mastered}             emoji="🏆" color="bg-green-50"  />
-            <StatCard label="Retention"   value={`${stats.retention_rate}%`} emoji="🧠" color="bg-purple-50" />
+            <StatCard label="Total Cards" value={stats.total_cards} emoji="📚" gradient="from-indigo-500 to-purple-500" />
+            <StatCard label="Due Today"   value={stats.due_today}   emoji="📅" gradient="from-orange-400 to-red-500" />
+            <StatCard label="Mastered"    value={stats.mastered}    emoji="🏆" gradient="from-green-400 to-emerald-500" />
+            <StatCard label="Retention"   value={`${stats.retention_rate}%`} emoji="🧠" gradient="from-blue-400 to-cyan-500" />
           </div>
         )}
 
-        {/* ── Study Heatmap ── */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">🗓️ Study Activity</h2>
-          <Heatmap data={heatmap} />
-        </div>
-
-        {/* ── Upcoming Review Forecast ── */}
-        {forecast.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">📅 Upcoming Reviews (next 14 days)</h2>
-            <div className="flex items-end gap-1 h-24">
-              {forecast.map(({ date, count }) => {
-                const label = new Date(date + "T00:00:00").toLocaleDateString("en", { month: "short", day: "numeric" });
-                const pct   = Math.round((count / maxForecast) * 100);
-                return (
-                  <div key={date} className="flex-1 flex flex-col items-center gap-1" title={`${label}: ${count} cards`}>
-                    <p className="text-xs text-gray-500 font-medium">{count}</p>
-                    <div
-                      className="w-full bg-indigo-400 rounded-t-md transition-all"
-                      style={{ height: `${Math.max(pct, 4)}%`, minHeight: "4px" }}
-                    />
-                    <p className="text-[9px] text-gray-400 rotate-45 origin-left mt-1 whitespace-nowrap">{label}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Per-Topic Accuracy ── */}
-        {topics.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">📊 Topic Accuracy</h2>
-            <div className="space-y-3">
-              {topics.map(t => (
-                <div key={t.topic}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-700 font-medium truncate">{t.topic}</span>
-                    <span className="text-gray-500 ml-4 shrink-0">
-                      {t.accuracy !== null ? `${t.accuracy}%` : "—"} · {t.card_count} cards
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all ${
-                        t.accuracy >= 80 ? "bg-green-500" :
-                        t.accuracy >= 60 ? "bg-yellow-400" : "bg-red-400"
-                      }`}
-                      style={{ width: `${t.accuracy || 0}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── How it Works ── */}
-        <div className="bg-indigo-50 rounded-2xl p-6">
-          <h2 className="text-lg font-semibold text-indigo-900 mb-4">How it works</h2>
+        {/* How it works */}
+        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-3xl p-6 border border-indigo-100 dark:border-indigo-900">
+          <h2 className="text-base font-semibold text-indigo-900 dark:text-indigo-300 mb-4">How it works</h2>
           <div className="grid md:grid-cols-3 gap-4">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">📄</span>
-              <div>
-                <p className="font-semibold text-gray-800 text-sm">1. Upload your PDF</p>
-                <p className="text-gray-500 text-xs mt-1">AI reads your notes and generates flashcards automatically</p>
+            {[
+              { icon: "📄", title: "1. Upload your PDF", desc: "AI reads your notes and generates flashcards automatically" },
+              { icon: "🔁", title: "2. Review cards daily", desc: "Rate 1–4 and FSRS schedules your next review at the perfect time" },
+              { icon: "📈", title: "3. Track your progress", desc: "Watch retention climb as you consistently review" },
+            ].map(item => (
+              <div key={item.title} className="flex items-start gap-3">
+                <span className="text-2xl">{item.icon}</span>
+                <div>
+                  <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm">{item.title}</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">{item.desc}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">🔁</span>
-              <div>
-                <p className="font-semibold text-gray-800 text-sm">2. Review cards daily</p>
-                <p className="text-gray-500 text-xs mt-1">Rate 1–4 and FSRS schedules your next review at the perfect time</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">📈</span>
-              <div>
-                <p className="font-semibold text-gray-800 text-sm">3. Track your progress</p>
-                <p className="text-gray-500 text-xs mt-1">Watch retention climb as you consistently review — fight the forgetting curve</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* ── Upload Section ── */}
-        <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center">
-          <p className="text-4xl mb-3">📄</p>
-          <h2 className="text-lg font-semibold text-gray-700 mb-1">Upload PDF Notes</h2>
-          <p className="text-gray-400 text-sm mb-4">AI will generate flashcards from your notes automatically</p>
+        {/* Upload */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          className={`
+            rounded-3xl p-10 text-center border-2 border-dashed transition-all duration-200 cursor-pointer
+            ${dragOver
+              ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.01]"
+              : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+            }
+          `}
+          onClick={() => !uploading && fileInputRef.current.click()}
+        >
+          <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
+            📄
+          </div>
+          <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-1">
+            {uploading ? "Generating flashcards..." : "Upload PDF Notes"}
+          </h2>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mb-5">
+            {dragOver ? "Drop it here!" : "Drag & drop or click to choose a PDF"}
+          </p>
           <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
           <button
-            onClick={() => fileInputRef.current.click()}
+            onClick={(e) => { e.stopPropagation(); fileInputRef.current.click(); }}
             disabled={uploading}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white px-6 py-2.5 rounded-xl font-medium transition-colors"
+            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-md shadow-indigo-200 dark:shadow-indigo-900 hover:-translate-y-0.5"
           >
             {uploading ? "Generating..." : "Choose PDF"}
           </button>
-          {uploadMsg && <p className="mt-4 text-sm text-gray-600">{uploadMsg}</p>}
+          {uploadMsg && (
+            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 animate-fade-in">{uploadMsg}</p>
+          )}
         </div>
 
-        {/* ── Notification Settings ── */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-5">
-          <h2 className="text-lg font-semibold text-gray-800">📬 Daily Reminders</h2>
-
-          {/* Email */}
-          <div>
-            <p className="text-sm text-gray-500 mb-2">Email address to receive reminders</p>
-            <form onSubmit={handleSaveEmail} className="flex gap-3">
-              <input
-                type="email" value={notifyEmail}
-                onChange={e => setNotifyEmail(e.target.value)}
-                placeholder="you@example.com" required
-                className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              />
-              <button
-                type="submit" disabled={emailSaving}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
-              >
-                {emailSaving ? "Saving..." : emailSaved ? "✓ Saved!" : "Save"}
-              </button>
-            </form>
-          </div>
-
-          {/* Reminder time */}
-          <div>
-            <p className="text-sm text-gray-500 mb-2">⏰ Reminder time</p>
-            <form onSubmit={handleSaveTime} className="flex gap-3">
-              <input
-                type="time" value={reminderTime}
-                onChange={e => setReminderTime(e.target.value)}
-                required
-                className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              />
-              <button
-                type="submit" disabled={timeSaving}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
-              >
-                {timeSaving ? "Saving..." : timeSaved ? "✓ Saved!" : "Set time"}
-              </button>
-            </form>
-          </div>
+        {/* Email Notifications */}
+        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-white mb-1">📬 Daily Reminders</h2>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">Get an email at 8 AM when you have cards due.</p>
+          <form onSubmit={handleSaveEmail} className="flex gap-3">
+            <input
+              type="email"
+              value={notifyEmail}
+              onChange={(e) => setNotifyEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent placeholder-gray-300 dark:placeholder-gray-600 transition-all"
+            />
+            <button
+              type="submit"
+              disabled={emailSaving}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm"
+            >
+              {emailSaving ? "Saving..." : emailSaved ? "✓ Saved!" : "Save"}
+            </button>
+          </form>
         </div>
 
-        {/* ── Decks List ── */}
+        {/* Decks */}
         {decks.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Your Decks</h2>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Your Decks</h2>
             <div className="space-y-3">
-              {decks.map(deck => (
-                <div key={deck.id} className="bg-white border border-gray-100 rounded-xl p-4 flex items-center justify-between shadow-sm">
-                  <div>
-                    <p className="font-medium text-gray-800">{deck.name}</p>
-                    <p className="text-sm text-gray-400">{deck.total_cards} cards · Created {new Date(deck.created_at).toLocaleDateString()}</p>
+              {decks.map((deck) => (
+                <div
+                  key={deck.id}
+                  className="group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-900 transition-all duration-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 rounded-xl flex items-center justify-center text-lg">📚</div>
+                    <div>
+                      <p className="font-medium text-gray-800 dark:text-white text-sm">{deck.name}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{deck.total_cards} cards · {new Date(deck.created_at).toLocaleDateString()}</p>
+                    </div>
                   </div>
                   <button
                     onClick={() => handleDeleteDeck(deck.id, deck.name)}
-                    className="text-gray-300 hover:text-red-500 transition-colors text-xl ml-4"
+                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition-all text-lg"
                     title="Delete deck"
                   >
                     🗑️
@@ -356,10 +275,12 @@ export default function HomePage({ onStartReview, onLogout }) {
           </div>
         )}
 
+        {/* Empty state */}
         {decks.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
-            <p className="text-5xl mb-3">📭</p>
-            <p>No decks yet. Upload a PDF to get started!</p>
+          <div className="text-center py-16 text-gray-400 dark:text-gray-600">
+            <p className="text-6xl mb-4">📭</p>
+            <p className="font-medium">No decks yet</p>
+            <p className="text-sm mt-1">Upload a PDF above to get started</p>
           </div>
         )}
 

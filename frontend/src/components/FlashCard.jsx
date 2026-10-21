@@ -1,150 +1,93 @@
-// ================================================================
-// FlashCard.jsx
-// ================================================================
-// This component renders the actual flashcard with a flip animation.
-//
-// What is a component?
-// --------------------
-// A React component is just a function that returns HTML (JSX).
-// We can reuse it anywhere by writing <FlashCard ... />
-//
-// What is JSX?
-// ------------
-// JSX is HTML-like syntax inside JavaScript. It looks like HTML
-// but it's actually JavaScript. React converts it to real HTML.
-//
-// How does the flip animation work?
-// ----------------------------------
-// We use CSS 3D transforms. The card has two faces (front/back).
-// When flipped=true, we rotate the card 180 degrees on the Y axis.
-// The back face starts rotated 180 degrees, so it becomes visible.
-// This creates the realistic card-flip effect.
-// ================================================================
-
 import { useState } from "react";
-// useState is a React "hook" — it lets us store values that,
-// when changed, cause the component to re-render (update the UI)
 
+const ratings = [
+  { value: 1, label: "Again",  emoji: "😫", bg: "bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" },
+  { value: 2, label: "Hard",   emoji: "😓", bg: "bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400" },
+  { value: 3, label: "Good",   emoji: "🙂", bg: "bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border-green-200 dark:border-green-800 text-green-600 dark:text-green-400" },
+  { value: 4, label: "Easy",   emoji: "😄", bg: "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400" },
+];
 
-/**
- * FlashCard component
- *
- * Props (inputs to the component):
- * @param {Object} card     - The card data { question, answer, topic, card_type }
- * @param {Function} onRate - Function to call when user rates the card (1/2/3/4)
- */
 export default function FlashCard({ card, onRate }) {
-  // isFlipped tracks whether we're showing the question or answer
-  // false = showing question (front), true = showing answer (back)
   const [isFlipped, setIsFlipped] = useState(false);
 
-  // The 4 rating buttons with their colors and labels
-  const ratings = [
-    { value: 1, label: "Again",  emoji: "😫", color: "bg-red-500 hover:bg-red-600" },
-    { value: 2, label: "Hard",   emoji: "😓", color: "bg-orange-500 hover:bg-orange-600" },
-    { value: 3, label: "Good",   emoji: "🙂", color: "bg-green-500 hover:bg-green-600" },
-    { value: 4, label: "Easy",   emoji: "😄", color: "bg-blue-500 hover:bg-blue-600" },
-  ];
-
-  // When user clicks a rating button:
-  // 1. Reset the flip so next card shows the front
-  // 2. Call onRate with the rating value (triggers FSRS in backend)
   function handleRate(rating) {
-    setIsFlipped(false);     // reset flip for next card
-    onRate(rating);          // tell the parent component the rating
+    setIsFlipped(false);
+    onRate(rating);
   }
 
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-2xl mx-auto">
 
-      {/* ── Topic Badge ─────────────────────────────────────── */}
-      <div className="flex gap-2">
-        <span className="bg-indigo-100 text-indigo-700 text-sm px-3 py-1 rounded-full font-medium">
+      {/* Topic badges */}
+      <div className="flex gap-2 flex-wrap justify-center">
+        <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs px-3 py-1.5 rounded-full font-medium border border-indigo-100 dark:border-indigo-800">
           {card.topic || "General"}
         </span>
-        <span className="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
+        <span className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700">
           {card.card_type}
         </span>
       </div>
 
-      {/* ── The Card (with flip animation) ──────────────────── */}
-      {/*
-        "perspective" is required for 3D CSS transforms to work.
-        Without it, the 3D rotation looks flat.
-        The outer div provides the perspective, inner div rotates.
-      */}
+      {/* Card */}
       <div
-        className="w-full cursor-pointer"
-        style={{ perspective: "1000px" }}   // CSS 3D perspective
-        onClick={() => setIsFlipped(!isFlipped)}  // click to flip
+        className="w-full cursor-pointer select-none"
+        style={{ perspective: "1200px" }}
+        onClick={() => setIsFlipped(!isFlipped)}
       >
-        {/* This div is what actually rotates */}
         <div
-          className="relative w-full transition-transform duration-500"
+          className="relative w-full transition-transform duration-500 ease-out"
           style={{
-            transformStyle: "preserve-3d",          // enable 3D on children
+            transformStyle: "preserve-3d",
             transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-            minHeight: "240px",
+            minHeight: "260px",
           }}
         >
-
-          {/* ── Front Face (Question) ──────────────────────── */}
+          {/* Front */}
           <div
-            className="absolute inset-0 bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center border border-gray-100"
-            style={{ backfaceVisibility: "hidden" }}  // hide when flipped
+            className="absolute inset-0 bg-white dark:bg-gray-900 rounded-3xl shadow-lg dark:shadow-black/30 p-8 flex flex-col items-center justify-center border border-gray-100 dark:border-gray-800"
+            style={{ backfaceVisibility: "hidden" }}
           >
-            <p className="text-xs uppercase tracking-widest text-gray-400 mb-4">Question</p>
-            <p className="text-xl font-medium text-gray-800 text-center leading-relaxed">
+            <p className="text-xs uppercase tracking-widest text-gray-300 dark:text-gray-600 mb-5 font-medium">Question</p>
+            <p className="text-xl font-medium text-gray-800 dark:text-white text-center leading-relaxed">
               {card.question}
             </p>
-            <p className="text-sm text-gray-400 mt-6">Click to reveal answer</p>
+            <div className="mt-8 flex items-center gap-2 text-gray-300 dark:text-gray-600">
+              <span className="text-sm">Tap to reveal</span>
+              <span className="text-lg">↕</span>
+            </div>
           </div>
 
-          {/* ── Back Face (Answer) ────────────────────────── */}
-          {/*
-            The back face starts rotated 180deg.
-            When the card flips 180deg, back + card = 360deg = facing forward.
-            backfaceVisibility: hidden hides it when it's facing away.
-          */}
+          {/* Back */}
           <div
-            className="absolute inset-0 bg-indigo-50 rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center border border-indigo-100"
-            style={{
-              backfaceVisibility: "hidden",
-              transform: "rotateY(180deg)",  // starts facing away
-            }}
+            className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/50 p-8 flex flex-col items-center justify-center"
+            style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            <p className="text-xs uppercase tracking-widest text-indigo-400 mb-4">Answer</p>
-            <p className="text-lg text-gray-700 text-center leading-relaxed">
+            <p className="text-xs uppercase tracking-widest text-indigo-200 mb-5 font-medium">Answer</p>
+            <p className="text-xl text-white text-center leading-relaxed font-medium">
               {card.answer}
             </p>
           </div>
-
         </div>
       </div>
 
-      {/* ── Rating Buttons (only show after flip) ───────────── */}
-      {/*
-        We show the rating buttons only after the user flips the card.
-        No point rating something you haven't seen the answer to!
-      */}
+      {/* Rating buttons */}
       {isFlipped && (
-        <div className="w-full">
-          <p className="text-center text-sm text-gray-500 mb-3">How well did you remember?</p>
+        <div className="w-full animate-fade-in">
+          <p className="text-center text-sm text-gray-400 dark:text-gray-500 mb-3">How well did you remember?</p>
           <div className="grid grid-cols-4 gap-3">
             {ratings.map((r) => (
               <button
                 key={r.value}
                 onClick={() => handleRate(r.value)}
-                className={`${r.color} text-white rounded-xl py-3 flex flex-col items-center gap-1 transition-all duration-150 active:scale-95`}
+                className={`${r.bg} border rounded-2xl py-3.5 flex flex-col items-center gap-1 transition-all duration-150 active:scale-95 hover:-translate-y-0.5`}
               >
-                <span className="text-xl">{r.emoji}</span>
-                <span className="text-sm font-medium">{r.label}</span>
+                <span className="text-2xl">{r.emoji}</span>
+                <span className="text-xs font-semibold">{r.label}</span>
               </button>
             ))}
           </div>
         </div>
       )}
-
     </div>
   );
 }
