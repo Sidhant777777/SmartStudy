@@ -29,12 +29,13 @@ export default function ReviewPage({ onFinish }) {
     setSubmitting(true);
     try {
       await reviewCard(currentCard.id, rating);
+    } catch (err) {
+      console.error("Failed to submit review:", err);
+      // Still advance even on API error so user isn't stuck
+    } finally {
       const labels = { 1: "again", 2: "hard", 3: "good", 4: "easy" };
       setSessionStats(prev => ({ ...prev, [labels[rating]]: prev[labels[rating]] + 1 }));
       setCurrentIndex(prev => prev + 1);
-    } catch (err) {
-      console.error("Failed to submit review:", err);
-    } finally {
       setSubmitting(false);
     }
   }
@@ -129,7 +130,7 @@ export default function ReviewPage({ onFinish }) {
         />
       </div>
 
-      <FlashCard card={currentCard} onRate={handleRate} />
+      <FlashCard key={currentCard.id} card={currentCard} onRate={handleRate} />
 
       <p className="text-center text-xs text-gray-300 dark:text-gray-600">
         From: {currentCard.deck_name}
